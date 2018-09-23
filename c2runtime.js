@@ -13464,6 +13464,389 @@ cr.system_object.prototype.loadFromJSON = function (o)
 cr.shaders = {};
 ;
 ;
+cr.plugins_.AJAX = function(runtime)
+{
+	this.runtime = runtime;
+};
+(function ()
+{
+	var isNWjs = false;
+	var path = null;
+	var fs = null;
+	var nw_appfolder = "";
+	var pluginProto = cr.plugins_.AJAX.prototype;
+	pluginProto.Type = function(plugin)
+	{
+		this.plugin = plugin;
+		this.runtime = plugin.runtime;
+	};
+	var typeProto = pluginProto.Type.prototype;
+	typeProto.onCreate = function()
+	{
+	};
+	pluginProto.Instance = function(type)
+	{
+		this.type = type;
+		this.runtime = type.runtime;
+		this.lastData = "";
+		this.curTag = "";
+		this.progress = 0;
+		this.timeout = -1;
+		isNWjs = this.runtime.isNWjs;
+		if (isNWjs)
+		{
+			path = require("path");
+			fs = require("fs");
+			var process = window["process"] || nw["process"];
+			nw_appfolder = path["dirname"](process["execPath"]) + "\\";
+		}
+	};
+	var instanceProto = pluginProto.Instance.prototype;
+	var theInstance = null;
+	window["C2_AJAX_DCSide"] = function (event_, tag_, param_)
+	{
+		if (!theInstance)
+			return;
+		if (event_ === "success")
+		{
+			theInstance.curTag = tag_;
+			theInstance.lastData = param_;
+			theInstance.runtime.trigger(cr.plugins_.AJAX.prototype.cnds.OnAnyComplete, theInstance);
+			theInstance.runtime.trigger(cr.plugins_.AJAX.prototype.cnds.OnComplete, theInstance);
+		}
+		else if (event_ === "error")
+		{
+			theInstance.curTag = tag_;
+			theInstance.runtime.trigger(cr.plugins_.AJAX.prototype.cnds.OnAnyError, theInstance);
+			theInstance.runtime.trigger(cr.plugins_.AJAX.prototype.cnds.OnError, theInstance);
+		}
+		else if (event_ === "progress")
+		{
+			theInstance.progress = param_;
+			theInstance.curTag = tag_;
+			theInstance.runtime.trigger(cr.plugins_.AJAX.prototype.cnds.OnProgress, theInstance);
+		}
+	};
+	instanceProto.onCreate = function()
+	{
+		theInstance = this;
+	};
+	instanceProto.saveToJSON = function ()
+	{
+		return { "lastData": this.lastData };
+	};
+	instanceProto.loadFromJSON = function (o)
+	{
+		this.lastData = o["lastData"];
+		this.curTag = "";
+		this.progress = 0;
+	};
+	var next_request_headers = {};
+	var next_override_mime = "";
+	instanceProto.doRequest = function (tag_, url_, method_, data_)
+	{
+		if (this.runtime.isDirectCanvas)
+		{
+			AppMobi["webview"]["execute"]('C2_AJAX_WebSide("' + tag_ + '", "' + url_ + '", "' + method_ + '", ' + (data_ ? '"' + data_ + '"' : "null") + ');');
+			return;
+		}
+		var self = this;
+		var request = null;
+		var doErrorFunc = function ()
+		{
+			self.curTag = tag_;
+			self.runtime.trigger(cr.plugins_.AJAX.prototype.cnds.OnAnyError, self);
+			self.runtime.trigger(cr.plugins_.AJAX.prototype.cnds.OnError, self);
+		};
+		var errorFunc = function ()
+		{
+			if (isNWjs)
+			{
+				var filepath = nw_appfolder + url_;
+				if (fs["existsSync"](filepath))
+				{
+					fs["readFile"](filepath, {"encoding": "utf8"}, function (err, data) {
+						if (err)
+						{
+							doErrorFunc();
+							return;
+						}
+						self.curTag = tag_;
+						self.lastData = data.replace(/\r\n/g, "\n")
+						self.runtime.trigger(cr.plugins_.AJAX.prototype.cnds.OnAnyComplete, self);
+						self.runtime.trigger(cr.plugins_.AJAX.prototype.cnds.OnComplete, self);
+					});
+				}
+				else
+					doErrorFunc();
+			}
+			else
+				doErrorFunc();
+		};
+		var progressFunc = function (e)
+		{
+			if (!e["lengthComputable"])
+				return;
+			self.progress = e.loaded / e.total;
+			self.curTag = tag_;
+			self.runtime.trigger(cr.plugins_.AJAX.prototype.cnds.OnProgress, self);
+		};
+		try
+		{
+			if (this.runtime.isWindowsPhone8)
+				request = new ActiveXObject("Microsoft.XMLHTTP");
+			else
+				request = new XMLHttpRequest();
+			request.onreadystatechange = function()
+			{
+				if (request.readyState === 4)
+				{
+					self.curTag = tag_;
+					if (request.responseText)
+						self.lastData = request.responseText.replace(/\r\n/g, "\n");		// fix windows style line endings
+					else
+						self.lastData = "";
+					if (request.status >= 400)
+					{
+						self.runtime.trigger(cr.plugins_.AJAX.prototype.cnds.OnAnyError, self);
+						self.runtime.trigger(cr.plugins_.AJAX.prototype.cnds.OnError, self);
+					}
+					else
+					{
+						if ((!isNWjs || self.lastData.length) && !(!isNWjs && request.status === 0 && !self.lastData.length))
+						{
+							self.runtime.trigger(cr.plugins_.AJAX.prototype.cnds.OnAnyComplete, self);
+							self.runtime.trigger(cr.plugins_.AJAX.prototype.cnds.OnComplete, self);
+						}
+					}
+				}
+			};
+			if (!this.runtime.isWindowsPhone8)
+			{
+				request.onerror = errorFunc;
+				request.ontimeout = errorFunc;
+				request.onabort = errorFunc;
+				request["onprogress"] = progressFunc;
+			}
+			request.open(method_, url_);
+			if (!this.runtime.isWindowsPhone8)
+			{
+				if (this.timeout >= 0 && typeof request["timeout"] !== "undefined")
+					request["timeout"] = this.timeout;
+			}
+			try {
+				request.responseType = "text";
+			} catch (e) {}
+			if (data_)
+			{
+				if (request["setRequestHeader"] && !next_request_headers.hasOwnProperty("Content-Type"))
+				{
+					request["setRequestHeader"]("Content-Type", "application/x-www-form-urlencoded");
+				}
+			}
+			if (request["setRequestHeader"])
+			{
+				var p;
+				for (p in next_request_headers)
+				{
+					if (next_request_headers.hasOwnProperty(p))
+					{
+						try {
+							request["setRequestHeader"](p, next_request_headers[p]);
+						}
+						catch (e) {}
+					}
+				}
+				next_request_headers = {};
+			}
+			if (next_override_mime && request["overrideMimeType"])
+			{
+				try {
+					request["overrideMimeType"](next_override_mime);
+				}
+				catch (e) {}
+				next_override_mime = "";
+			}
+			if (data_)
+				request.send(data_);
+			else
+				request.send();
+		}
+		catch (e)
+		{
+			errorFunc();
+		}
+	};
+	function Cnds() {};
+	Cnds.prototype.OnComplete = function (tag)
+	{
+		return cr.equals_nocase(tag, this.curTag);
+	};
+	Cnds.prototype.OnAnyComplete = function (tag)
+	{
+		return true;
+	};
+	Cnds.prototype.OnError = function (tag)
+	{
+		return cr.equals_nocase(tag, this.curTag);
+	};
+	Cnds.prototype.OnAnyError = function (tag)
+	{
+		return true;
+	};
+	Cnds.prototype.OnProgress = function (tag)
+	{
+		return cr.equals_nocase(tag, this.curTag);
+	};
+	pluginProto.cnds = new Cnds();
+	function Acts() {};
+	Acts.prototype.Request = function (tag_, url_)
+	{
+		var self = this;
+		if (this.runtime.isWKWebView && !this.runtime.isAbsoluteUrl(url_))
+		{
+			this.runtime.fetchLocalFileViaCordovaAsText(url_,
+			function (str)
+			{
+				self.curTag = tag_;
+				self.lastData = str.replace(/\r\n/g, "\n");		// fix windows style line endings
+				self.runtime.trigger(cr.plugins_.AJAX.prototype.cnds.OnAnyComplete, self);
+				self.runtime.trigger(cr.plugins_.AJAX.prototype.cnds.OnComplete, self);
+			},
+			function (err)
+			{
+				self.curTag = tag_;
+				self.runtime.trigger(cr.plugins_.AJAX.prototype.cnds.OnAnyError, self);
+				self.runtime.trigger(cr.plugins_.AJAX.prototype.cnds.OnError, self);
+			});
+		}
+		else
+		{
+			this.doRequest(tag_, url_, "GET");
+		}
+	};
+	Acts.prototype.RequestFile = function (tag_, file_)
+	{
+		var self = this;
+		if (this.runtime.isWKWebView)
+		{
+			this.runtime.fetchLocalFileViaCordovaAsText(file_,
+			function (str)
+			{
+				self.curTag = tag_;
+				self.lastData = str.replace(/\r\n/g, "\n");		// fix windows style line endings
+				self.runtime.trigger(cr.plugins_.AJAX.prototype.cnds.OnAnyComplete, self);
+				self.runtime.trigger(cr.plugins_.AJAX.prototype.cnds.OnComplete, self);
+			},
+			function (err)
+			{
+				self.curTag = tag_;
+				self.runtime.trigger(cr.plugins_.AJAX.prototype.cnds.OnAnyError, self);
+				self.runtime.trigger(cr.plugins_.AJAX.prototype.cnds.OnError, self);
+			});
+		}
+		else
+		{
+			this.doRequest(tag_, file_, "GET");
+		}
+	};
+	Acts.prototype.Post = function (tag_, url_, data_, method_)
+	{
+		this.doRequest(tag_, url_, method_, data_);
+	};
+	Acts.prototype.SetTimeout = function (t)
+	{
+		this.timeout = t * 1000;
+	};
+	Acts.prototype.SetHeader = function (n, v)
+	{
+		next_request_headers[n] = v;
+	};
+	Acts.prototype.OverrideMIMEType = function (m)
+	{
+		next_override_mime = m;
+	};
+	pluginProto.acts = new Acts();
+	function Exps() {};
+	Exps.prototype.LastData = function (ret)
+	{
+		ret.set_string(this.lastData);
+	};
+	Exps.prototype.Progress = function (ret)
+	{
+		ret.set_float(this.progress);
+	};
+	Exps.prototype.Tag = function (ret)
+	{
+		ret.set_string(this.curTag);
+	};
+	pluginProto.exps = new Exps();
+}());
+/**
+ * Object holder for the plugin
+ */
+cr.plugins_.ATPShare = function(runtime) {
+    this.runtime = runtime;
+};
+/**
+ * C2 plugin
+ */
+(function() {
+    var pluginProto = cr.plugins_.ATPShare.prototype;
+    pluginProto.Type = function(plugin) {
+        this.plugin = plugin;
+        this.runtime = plugin.runtime;
+    };
+    var typeProto = pluginProto.Type.prototype;
+    typeProto.onCreate = function() {};
+    /**
+     * C2 specific behaviour
+     */
+    pluginProto.Instance = function(type) {
+        this.type = type;
+        this.runtime = type.runtime;
+    };
+    var instanceProto = pluginProto.Instance.prototype;
+    var self;
+    instanceProto.onCreate = function() {
+        if (!(this.runtime.isAndroid || this.runtime.isiOS))
+            return;
+        if (typeof Cocoon == 'undefined')
+            return;
+        self = this;
+    };
+    function Cnds() {};
+    Cnds.prototype.onShareComplete = function() {
+        return true;
+    };
+    Cnds.prototype.onShareFail = function() {
+        return true;
+    }
+    pluginProto.cnds = new Cnds();
+    /**
+     * Plugin actions
+     */
+    function Acts() {};
+    Acts.prototype.Share = function(text, img) {
+        if (!window.Cocoon || !window.Cocoon.Share) {
+            return;
+        }
+        Cocoon.Share.share({
+            message: text,
+            image: img
+        }, function(activity, completed, error){
+            if (completed) {
+                self.runtime.trigger(cr.plugins_.ATPShare.prototype.cnds.onShareComplete, self);
+            } else {
+                self.runtime.trigger(cr.plugins_.ATPShare.prototype.cnds.onShareFail, self);
+                console.log(error);
+            }
+        });
+    };
+    pluginProto.acts = new Acts();
+}());
+;
+;
 cr.plugins_.Arr = function(runtime)
 {
 	this.runtime = runtime;
@@ -18984,6 +19367,547 @@ cr.plugins_.Rex_Firebase_Query = function(runtime)
 	};
 	function Exps() {};
 	pluginProto.exps = new Exps();
+}());
+/*
+- counter value
+*/
+;
+;
+cr.plugins_.Rex_Firebase_Storage = function(runtime)
+{
+	this.runtime = runtime;
+};
+(function ()
+{
+	var pluginProto = cr.plugins_.Rex_Firebase_Storage.prototype;
+	pluginProto.Type = function(plugin)
+	{
+		this.plugin = plugin;
+		this.runtime = plugin.runtime;
+	};
+	var typeProto = pluginProto.Type.prototype;
+	typeProto.onCreate = function()
+	{
+	};
+	pluginProto.Instance = function(type)
+	{
+		this.type = type;
+		this.runtime = type.runtime;
+	};
+	var instanceProto = pluginProto.Instance.prototype;
+	instanceProto.onCreate = function()
+	{
+	    this.rootpath = this.properties[0] + "/";
+        this.uploadTask = null;
+        this.metadata = {};
+        this.snapshot = null;
+        this.isUploading = false;
+        this.error = null;
+        this.exp_LastDownloadURL = "";
+        this.exp_LastMetadata = null
+	};
+	instanceProto.onDestroy = function ()
+	{
+	};
+	instanceProto.get_storage_ref = function(k)
+	{
+        if (k == null)
+	        k = "";
+	    var path = this.rootpath + k + "/";
+        return window["Firebase"]["storage"]()["ref"](path);
+	};
+    instanceProto.upload = function(file, path, metadata)
+    {
+        if (this.uploadTask)
+            this.uploadTask["cancel"]();
+        var self=this;
+        this.isUploading = null;
+        this.snapshot = null;
+        this.error = null;
+        this.exp_LastDownloadURL = "";
+        var onComplete = function ()
+        {
+            self.isUploading = false;
+            self.snapshot = self.uploadTask["snapshot"];
+            self.exp_LastDownloadURL = self.snapshot["downloadURL"];
+            self.exp_LastMetadata = self.snapshot["metadata"];
+            self.runtime.trigger(cr.plugins_.Rex_Firebase_Storage.prototype.cnds.OnUploadCompleted, self);
+        };
+        var onError = function (error)
+        {
+            self.isUploading = false;
+            self.error = error;
+            switch (error["code"])
+            {
+            case 'storage/unauthorized':
+                self.runtime.trigger(cr.plugins_.Rex_Firebase_Storage.prototype.cnds.OnUploadError, self);
+                break;
+            case 'storage/canceled':
+                self.runtime.trigger(cr.plugins_.Rex_Firebase_Storage.prototype.cnds.OnUploadCanceled, self);
+                break;
+            case 'storage/unknown':
+                self.runtime.trigger(cr.plugins_.Rex_Firebase_Storage.prototype.cnds.OnUploadError, self);
+                break;
+            default:
+                self.runtime.trigger(cr.plugins_.Rex_Firebase_Storage.prototype.cnds.OnUploadError, self);
+                break;
+            }
+        };
+        var onStateChanged = function (snapshot)
+        {
+            self.snapshot = self.uploadTask["snapshot"];
+            var isRunning = (snapshot["state"] === 'running');
+            if (isRunning && (self.isUploading === null))
+                self.runtime.trigger(cr.plugins_.Rex_Firebase_Storage.prototype.cnds.OnStart, self);
+            else if (isRunning && !self.isUploading)
+                self.runtime.trigger(cr.plugins_.Rex_Firebase_Storage.prototype.cnds.OnResmue, self);
+            else if (!isRunning && self.isUploading)
+                self.runtime.trigger(cr.plugins_.Rex_Firebase_Storage.prototype.cnds.OnPaused, self);
+            self.isUploading = isRunning;
+            self.runtime.trigger(cr.plugins_.Rex_Firebase_Storage.prototype.cnds.OnProgress, self);
+        };
+        this.exp_LastMetadata = metadata;
+        this.uploadTask = this.get_storage_ref(path)["put"](file, metadata);
+        this.uploadTask["on"]('state_changed', onStateChanged, onError, onComplete);
+    };
+	instanceProto.doRequest = function ( url_, callback )
+	{
+	    var oReq;
+		if (this.runtime.isWindowsPhone8)
+			oReq = new ActiveXObject("Microsoft.XMLHTTP");
+		else
+			oReq = new XMLHttpRequest();
+        oReq.open("GET", url_, true);
+        oReq.responseType = "arraybuffer";
+        oReq.onload = function (oEvent)
+        {
+            callback(oReq.response);
+        };
+        oReq.send(null);
+	};
+    var parseMetadata = function(metadata, defaultContentType)
+    {
+        if ((metadata.indexOf("{") !== -1) && (metadata.indexOf("}") !== -1))
+        {
+            metadata = JSON.parse(metadata);
+        }
+        else if (metadata !== "")
+        {
+            metadata = {"contentType":  metadata};
+        }
+        else
+            metadata = {};
+        if (!metadata.hasOwnProperty("contentType") && defaultContentType)
+            metadata["contentType"] = defaultContentType;
+        return metadata;
+    };
+	var setValue = function(keys, value, root)
+	{
+        if (typeof (keys) === "string")
+            keys = keys.split(".");
+        var lastKey = keys.pop();
+        var entry = getEntry(keys, root);
+        entry[lastKey] = value;
+	};
+	var getEntry = function(keys, root)
+	{
+        var entry = root;
+        if ((keys === "") || (keys.length === 0))
+        {
+        }
+        else
+        {
+            if (typeof (keys) === "string")
+                keys = keys.split(".");
+            var i,  cnt=keys.length, key;
+            for (i=0; i< cnt; i++)
+            {
+                key = keys[i];
+                if ( (entry[key] == null) || (typeof(entry[key]) !== "object") )
+                    entry[key] = {};
+                entry = entry[key];
+            }
+        }
+        return entry;
+	};
+ 	var getItemValue = function (item, k, default_value)
+	{
+        var v;
+	    if (item == null)
+            v = null;
+        else if ( (k == null) || (k === "") )
+            v = item;
+        else if ((typeof(k) === "number") || (k.indexOf(".") == -1))
+            v = item[k];
+        else
+        {
+            var kList = k.split(".");
+            v = item;
+            var i,cnt=kList.length;
+            for(i=0; i<cnt; i++)
+            {
+                if (typeof(v) !== "object")
+                {
+                    v = null;
+                    break;
+                }
+                v = v[kList[i]];
+            }
+        }
+        return din(v, default_value);
+	};
+    var din = function (d, default_value)
+    {
+        var o;
+	    if (d === true)
+	        o = 1;
+	    else if (d === false)
+	        o = 0;
+        else if (d == null)
+        {
+            if (default_value != null)
+                o = default_value;
+            else
+                o = 0;
+        }
+        else if (typeof(d) == "object")
+            o = JSON.stringify(d);
+        else
+            o = d;
+	    return o;
+    };
+	function Cnds() {};
+	pluginProto.cnds = new Cnds();
+	Cnds.prototype.OnUploadCompleted = function ()
+	{
+	    return true;
+	};
+	Cnds.prototype.OnUploadError = function ()
+	{
+	    return true;
+	};
+	Cnds.prototype.OnUploadCanceled = function ()
+	{
+	    return true;
+	};
+	Cnds.prototype.OnPaused = function ()
+	{
+	    return true;
+	};
+	Cnds.prototype.OnResmue = function ()
+	{
+	    return true;
+	};
+	Cnds.prototype.IsUploading = function ()
+	{
+	    return this.isUploading;
+	};
+	Cnds.prototype.OnProgress = function ()
+	{
+	    return true;
+	};
+	Cnds.prototype.OnStart = function ()
+	{
+	    return true;
+	};
+	Cnds.prototype.OnGetDownloadURL = function ()
+	{
+	    return true;
+	};
+	Cnds.prototype.OnGetDownloadURLError = function ()
+	{
+	    return true;
+	};
+	Cnds.prototype.FileDoesntExist = function ()
+	{
+        return (this.error && (this.error === 'storage/object_not_found'));
+	};
+	Cnds.prototype.OnDeleteCompleted = function ()
+	{
+	    return true;
+	};
+	Cnds.prototype.OnDeleteError = function ()
+	{
+	    return true;
+	};
+	Cnds.prototype.OnGetMetadata = function ()
+	{
+	    return true;
+	};
+	Cnds.prototype.OnGetMetadataError = function ()
+	{
+	    return true;
+	};
+	Cnds.prototype.OnUpdateMetadata = function ()
+	{
+	    return true;
+	};
+	Cnds.prototype.OnUpdateMetadataError = function ()
+	{
+	    return true;
+	};
+	function Acts() {};
+	pluginProto.acts = new Acts();
+     Acts.prototype.SetSubDomainRef = function (ref)
+	{
+	    this.rootpath = ref + "/";
+    };
+    Acts.prototype.UploadFromFileChooser = function (fileChooserObjs, storagePath)
+	{
+        if (!fileChooserObjs)
+            return;
+        var fc = fileChooserObjs.getFirstPicked();
+        if (!fc)
+            return;
+;
+        var files = fc.elem["files"];
+        if (!files)
+            return;
+        var f = files[0];
+        if (!f)
+            return;
+        this.upload(f, storagePath, this.metadata);
+        this.metadata = {};
+	};
+    Acts.prototype.CancelUploading = function ()
+	{
+        if (!this.uploadTask)
+            return;
+        this.uploadTask["cancel"]();
+	};
+    Acts.prototype.PauseUploading = function ()
+	{
+        if (!this.uploadTask)
+            return;
+        this.uploadTask["pause"]();
+	};
+    Acts.prototype.ResumeUploading = function ()
+	{
+        if (!this.uploadTask)
+            return;
+        this.uploadTask["resume"]();
+	};
+    Acts.prototype.UploadFromSprite = function (objType, storagePath)
+	{
+        if (!objType)
+            return;
+        var inst = objType.getFirstPicked();
+        if (!inst)
+            return;
+        var canvas;
+        if (inst.curFrame)
+        {
+            canvas = frame_getCanvas.call(inst.curFrame);
+        }
+        else if (inst.canvas)
+        {
+            canvas = inst.canvas;
+        }
+        var self=this;
+        var onGetBlob = function (blob)
+        {
+            self.upload(blob, storagePath, self.metadata);
+            self.metadata = {};
+        };
+        canvas["toBlob"](onGetBlob);
+	};
+	function frame_getCanvas()
+	{
+        var tmpcanvas = document.createElement("canvas");
+        tmpcanvas.width = this.width;
+        tmpcanvas.height = this.height;
+        var tmpctx = tmpcanvas.getContext("2d");
+        if (this.spritesheeted)
+        {
+        	tmpctx.drawImage(this.texture_img, this.offx, this.offy, this.width, this.height,
+        							 0, 0, this.width, this.height);
+        }
+        else
+        {
+        	tmpctx.drawImage(this.texture_img, 0, 0, this.width, this.height);
+        }
+		return tmpcanvas;
+	};
+    Acts.prototype.UploadDataURI = function (dataURI, storagePath)
+	{
+        var obj = dataURItoBlob(dataURI);
+        var blob = obj[0];
+        var contentType = obj[1];
+        if (!this.metadata.hasOwnProperty("contentType"))
+            this.metadata["contentType"] = contentType;
+        this.upload(blob, storagePath, this.metadata);
+        this.metadata = {};
+	};
+    /*
+    The MIT License (MIT)
+    Copyright (c) 2016 David Gomez-Urquiza
+    Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+    The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
+    THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+    */
+    function dataURItoBlob(dataURI) {
+        var byteString = atob(dataURI.split(',')[1]);
+        var mimeString = dataURI.split(',')[0].split(':')[1].split(';')[0];
+        var arrayBuffer = new ArrayBuffer(byteString.length);
+        var _ia = new Uint8Array(arrayBuffer);
+        for (var i = 0; i < byteString.length; i++) {
+            _ia[i] = byteString.charCodeAt(i);
+        }
+        var dataView = new DataView(arrayBuffer);
+        var blob = new Blob([dataView], { "type": mimeString });
+        return [blob, mimeString];
+    };
+    Acts.prototype.UploadString = function (s, storagePath)
+	{
+        var type = "text/plain";
+        var blob = new Blob([s], {"type": type});
+        if (!this.metadata.hasOwnProperty("contentType"))
+            this.metadata["contentType"] = type;
+        this.upload(blob, storagePath, this.metadata);
+        this.metadata = {};
+	};
+    Acts.prototype.UploadObjectURL = function (objectURL, contentType, storagePath)
+	{
+        var self=this;
+        var callback = function (blob)
+        {
+            if (contentType !== "")
+                self.metadata["contentType"] = contentType;
+            self.upload(blob, storagePath, self.metadata);
+            self.metadata = {};
+        }
+        this.doRequest(objectURL, callback);
+	};
+    Acts.prototype.GetDownloadURL = function (storagePath)
+	{
+        var self=this;
+        var ref = this.get_storage_ref(storagePath);
+        this.error = null;
+        this.exp_LastDownloadURL = "";
+        var onComplete = function (url)
+        {
+            self.exp_LastDownloadURL = url;
+            self.runtime.trigger(cr.plugins_.Rex_Firebase_Storage.prototype.cnds.OnGetDownloadURL, self);
+        };
+        var onError = function (error)
+        {
+            self.error = error;
+            self.runtime.trigger(cr.plugins_.Rex_Firebase_Storage.prototype.cnds.OnGetDownloadURLError, self);
+        }
+        ref["getDownloadURL"]()["then"](onComplete)["catch"](onError);
+	};
+    Acts.prototype.DeleteAtURL = function (storagePath)
+	{
+        var self=this;
+        var ref = this.get_storage_ref(storagePath);
+        this.error = null;
+        var onComplete = function ()
+        {
+            self.runtime.trigger(cr.plugins_.Rex_Firebase_Storage.prototype.cnds.OnDeleteCompleted, self);
+        };
+        var onError = function (error)
+        {
+            self.error = error;
+            self.runtime.trigger(cr.plugins_.Rex_Firebase_Storage.prototype.cnds.OnDeleteError, self);
+        }
+        ref["delete"]()["then"](onComplete)["catch"](onError);
+	};
+    Acts.prototype.GetMetadata = function (storagePath)
+	{
+        var self=this;
+        var ref = this.get_storage_ref(storagePath);
+        this.error = null;
+        this.exp_LastMetadata = null;
+        var onComplete = function (metadata)
+        {
+            self.exp_LastMetadata = metadata;
+            self.runtime.trigger(cr.plugins_.Rex_Firebase_Storage.prototype.cnds.OnGetMetadata, self);
+        };
+        var onError = function (error)
+        {
+            self.error = error;
+            self.runtime.trigger(cr.plugins_.Rex_Firebase_Storage.prototype.cnds.OnGetMetadataError, self);
+        }
+        ref["getMetadata"]()["then"](onComplete)["catch"](onError);
+	};
+    Acts.prototype.UpdateMetadata = function (storagePath)
+	{
+        var self=this;
+        var ref = this.get_storage_ref(storagePath);
+        this.error = null;
+        this.exp_LastMetadata = null;
+        var onComplete = function (metadata)
+        {
+            self.exp_LastMetadata = metadata;
+            self.runtime.trigger(cr.plugins_.Rex_Firebase_Storage.prototype.cnds.OnUpdateMetadata, self);
+        };
+        var onError = function (error)
+        {
+            self.error = error;
+            self.runtime.trigger(cr.plugins_.Rex_Firebase_Storage.prototype.cnds.OnUpdateMetadataError, self);
+        }
+        ref["updateMetadata"](this.metadata)["then"](onComplete)["catch"](onError);
+        this.metadata = {};
+	};
+    Acts.prototype.MetadataSetValue = function (k, v)
+	{
+        setValue(k, v, this.metadata);
+        this.metadata
+	};
+    Acts.prototype.MetadataLoadJSON = function (s)
+	{
+        this.metadata = JSON.parse(s);
+	};
+    Acts.prototype.MetadataRemoveKey = function (k)
+	{
+        setValue(k, null, this.metadata);
+        this.metadata
+	};
+	function Exps() {};
+	pluginProto.exps = new Exps();
+	Exps.prototype.LastDownloadURL = function (ret)
+	{
+		ret.set_string(this.exp_LastDownloadURL);
+	};
+	Exps.prototype.Progress = function (ret)
+	{
+        var p;
+	    if (this.snapshot)
+            p = this.snapshot["bytesTransferred"] / this.snapshot["totalBytes"];
+		ret.set_float(p || 0);
+	};
+	Exps.prototype.TransferredBytes = function (ret)
+	{
+        var b;
+	    if (this.snapshot)
+            b = this.snapshot["bytesTransferred"];
+		ret.set_float(b || 0);
+	};
+	Exps.prototype.TotalBytes = function (ret)
+	{
+        var b;
+	    if (this.snapshot)
+            b = this.snapshot["totalBytes"];
+		ret.set_float(b || 0);
+	};
+	Exps.prototype.LastErrorCode = function (ret)
+	{
+        var code;
+	    if (this.error)
+            code = this.error["code"];
+		ret.set_string(code || "");
+	};
+	Exps.prototype.LastErrorMessage = function (ret)
+	{
+        var s;
+	    if (this.error)
+            s = this.error["serverResponse"];
+		ret.set_string(s || "");
+	};
+	Exps.prototype.LastMetadata = function (ret, k, default_value)
+	{
+		ret.set_any( getItemValue(this.exp_LastMetadata, k, default_value) );
+	};
 }());
 ;
 ;
@@ -25012,6 +25936,7 @@ cr.behaviors.lunarray_LiteTween = function(runtime)
 	};
 }());
 cr.getObjectRefTable = function () { return [
+	cr.plugins_.AJAX,
 	cr.plugins_.Arr,
 	cr.plugins_.Facebook,
 	cr.plugins_.Button,
@@ -25025,12 +25950,14 @@ cr.getObjectRefTable = function () { return [
 	cr.plugins_.Rex_FirebaseAPIV3,
 	cr.plugins_.Sprite,
 	cr.plugins_.Rex_Firebase_Query,
+	cr.plugins_.Rex_Firebase_Storage,
 	cr.plugins_.Rex_Firebase,
 	cr.plugins_.Twitter,
 	cr.plugins_.TextBox,
 	cr.plugins_.SpriteFontPlus,
 	cr.plugins_.cranberrygame_CordovaDialog,
 	cr.plugins_.Touch,
+	cr.plugins_.ATPShare,
 	cr.plugins_.Text,
 	cr.behaviors.DragnDrop,
 	cr.behaviors.lunarray_LiteTween,
@@ -25164,9 +26091,22 @@ cr.getObjectRefTable = function () { return [
 	cr.plugins_.Dictionary.prototype.exps.Get,
 	cr.system_object.prototype.exps["int"],
 	cr.system_object.prototype.exps.projectversion,
+	cr.plugins_.LocalStorage.prototype.cnds.CompareKey,
+	cr.plugins_.LocalStorage.prototype.exps.KeyAt,
 	cr.plugins_.Sprite.prototype.acts.SetOpacity,
 	cr.plugins_.Touch.prototype.cnds.OnTouchEnd,
 	cr.plugins_.Sprite.prototype.cnds.CompareOpacity,
 	cr.system_object.prototype.acts.AddVar,
-	cr.plugins_.Browser.prototype.acts.ExecJs
+	cr.plugins_.Browser.prototype.acts.ExecJs,
+	cr.system_object.prototype.acts.SnapshotCanvas,
+	cr.system_object.prototype.cnds.OnCanvasSnapshot,
+	cr.system_object.prototype.acts.Wait,
+	cr.plugins_.Browser.prototype.acts.InvokeDownload,
+	cr.system_object.prototype.exps.canvassnapshot,
+	cr.plugins_.LocalStorage.prototype.acts.SetItem,
+	cr.plugins_.Rex_Firebase_Storage.prototype.acts.UploadObjectURL,
+	cr.plugins_.Rex_Firebase_Storage.prototype.acts.DeleteAtURL,
+	cr.plugins_.LocalStorage.prototype.acts.GetItem,
+	cr.plugins_.Rex_Firebase_Authentication.prototype.exps.UID,
+	cr.plugins_.Twitter.prototype.acts.LoadFromJsonString
 ];};

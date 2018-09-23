@@ -1,5 +1,5 @@
 ﻿{
-	"version": 1537680134,
+	"version": 1537701377,
 	"fileList": [
 		"data.js",
 		"c2runtime.js",
@@ -29,6 +29,7 @@
 		"icon-128.png",
 		"icon-256.png",
 		"loading-logo.png",
+		"snapshotupload.php",
 		"channel.html",
 		"firebase.js",
 		"litetween.js"
