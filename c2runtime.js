@@ -25168,6 +25168,5 @@ cr.getObjectRefTable = function () { return [
 	cr.plugins_.Touch.prototype.cnds.OnTouchEnd,
 	cr.plugins_.Sprite.prototype.cnds.CompareOpacity,
 	cr.system_object.prototype.acts.AddVar,
-	cr.plugins_.Browser.prototype.acts.ExecJs,
-	cr.plugins_.Facebook.prototype.acts.PromptToShareLink
+	cr.plugins_.Browser.prototype.acts.ExecJs
 ];};
