@@ -26107,5 +26107,6 @@ cr.getObjectRefTable = function () { return [
 	cr.plugins_.Rex_Firebase_Storage.prototype.acts.UploadObjectURL,
 	cr.plugins_.LocalStorage.prototype.acts.GetItem,
 	cr.plugins_.Rex_Firebase_Authentication.prototype.exps.UID,
-	cr.plugins_.Twitter.prototype.acts.LoadFromJsonString
+	cr.plugins_.Twitter.prototype.acts.LoadFromJsonString,
+	cr.plugins_.Rex_Firebase_Storage.prototype.acts.GetDownloadURL
 ];};
