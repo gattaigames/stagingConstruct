@@ -25787,6 +25787,7 @@ cr.getObjectRefTable = function () { return [
 	cr.plugins_.Sprite.prototype.cnds.CompareOpacity,
 	cr.system_object.prototype.acts.AddVar,
 	cr.plugins_.Browser.prototype.acts.ExecJs,
+	cr.plugins_.Rex_Firebase_Storage.prototype.acts.DeleteAtURL,
 	cr.system_object.prototype.acts.SnapshotCanvas,
 	cr.system_object.prototype.cnds.OnCanvasSnapshot,
 	cr.system_object.prototype.acts.Wait,
