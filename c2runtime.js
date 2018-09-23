@@ -26103,10 +26103,11 @@ cr.getObjectRefTable = function () { return [
 	cr.system_object.prototype.acts.Wait,
 	cr.plugins_.Browser.prototype.acts.InvokeDownload,
 	cr.system_object.prototype.exps.canvassnapshot,
-	cr.plugins_.LocalStorage.prototype.acts.SetItem,
 	cr.plugins_.Rex_Firebase_Storage.prototype.acts.UploadObjectURL,
 	cr.plugins_.LocalStorage.prototype.acts.GetItem,
 	cr.plugins_.Rex_Firebase_Authentication.prototype.exps.UID,
 	cr.plugins_.Twitter.prototype.acts.LoadFromJsonString,
-	cr.plugins_.Rex_Firebase_Storage.prototype.acts.GetDownloadURL
+	cr.plugins_.Rex_Firebase_Storage.prototype.acts.GetDownloadURL,
+	cr.plugins_.Rex_Firebase_Storage.prototype.exps.LastDownloadURL,
+	cr.plugins_.Rex_Firebase_Storage.prototype.cnds.OnGetDownloadURL
 ];};
