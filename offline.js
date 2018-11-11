@@ -1,5 +1,5 @@
 ﻿{
-	"version": 1541774529,
+	"version": 1541899629,
 	"fileList": [
 		"data.js",
 		"c2runtime.js",
@@ -27,6 +27,12 @@
 		"images/rhb_logo-sheet0.png",
 		"images/game_money-sheet0.png",
 		"images/game_money-sheet1.png",
+		"images/bg_leaderboard-sheet0.png",
+		"images/btnback-sheet0.png",
+		"images/sprite-sheet0.png",
+		"images/sprite2-sheet0.png",
+		"images/sprite3-sheet0.png",
+		"images/sprite4-sheet0.png",
 		"icon-16.png",
 		"icon-32.png",
 		"icon-114.png",
