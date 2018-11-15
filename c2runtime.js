@@ -18358,6 +18358,224 @@ cr.plugins_.Particles = function(runtime)
 }());
 ;
 ;
+cr.plugins_.Rex_CSV2Array = function(runtime)
+{
+	this.runtime = runtime;
+};
+(function ()
+{
+	var pluginProto = cr.plugins_.Rex_CSV2Array.prototype;
+	pluginProto.Type = function(plugin)
+	{
+		this.plugin = plugin;
+		this.runtime = plugin.runtime;
+	};
+	var typeProto = pluginProto.Type.prototype;
+	typeProto.onCreate = function()
+	{
+	};
+	pluginProto.Instance = function(type)
+	{
+		this.type = type;
+		this.runtime = type.runtime;
+	};
+	var instanceProto = pluginProto.Instance.prototype;
+	instanceProto.onCreate = function()
+	{
+        this.strDelimiter = this.properties[0];
+        this.is_eval_mode = (this.properties[1] == 1);
+	    this.exp_CurX = 0;
+	    this.exp_CurY = 0;
+	    this.exp_CurValue = "";
+	    this.exp_Width = 0;
+	    this.exp_Height = 0;
+	};
+	instanceProto.value_get = function(v)
+	{
+	    if (v == null)
+	        v = 0;
+	    else if (this.is_eval_mode)
+	        v = eval("("+v+")");
+        return v;
+	};
+	instanceProto.saveToJSON = function ()
+	{
+		return { "delimiter": this.strDelimiter
+                     };
+	};
+	instanceProto.loadFromJSON = function (o)
+	{
+        this.strDelimiter = o["delimiter"];
+	};
+    var CSVToArray = function ( strData, strDelimiter ){
+        strDelimiter = (strDelimiter || ",");
+        var objPattern = new RegExp(
+                (
+                        "(\\" + strDelimiter + "|\\r?\\n|\\r|^)" +
+                        "(?:\"([^\"]*(?:\"\"[^\"]*)*)\"|" +
+                        "([^\"\\" + strDelimiter + "\\r\\n]*))"
+                ),
+                "gi"
+                );
+        var arrData = [[]];
+        var arrMatches = null;
+        while (arrMatches = objPattern.exec( strData )){
+                var strMatchedDelimiter = arrMatches[ 1 ];
+                if (
+                        strMatchedDelimiter.length &&
+                        (strMatchedDelimiter != strDelimiter)
+                        ){
+                        arrData.push( [] );
+                }
+                if (arrMatches[ 2 ]){
+                        var strMatchedValue = arrMatches[ 2 ].replace(
+                                new RegExp( "\"\"", "g" ),
+                                "\""
+                                );
+                } else {
+                        var strMatchedValue = arrMatches[ 3 ];
+                }
+                arrData[ arrData.length - 1 ].push( strMatchedValue );
+        }
+        return( arrData );
+    };
+	function Cnds() {};
+	pluginProto.cnds = new Cnds();
+	Cnds.prototype.ForEachCell = function (csv_string)
+	{
+	    var table = CSVToArray(csv_string, this.strDelimiter);
+		var y_cnt = table.length;
+		var x_cnt = table[0].length;
+		var i,j;
+        var current_frame = this.runtime.getCurrentEventStack();
+        var current_event = current_frame.current_event;
+		var solModifierAfterCnds = current_frame.isModifierAfterCnds();
+	    this.exp_Width = x_cnt;
+	    this.exp_Height = y_cnt;
+        if (solModifierAfterCnds)
+        {
+		    for (j=0; j<y_cnt; j++ )
+	        {
+	            this.exp_CurY = j;
+	            for (i=0; i<x_cnt; i++ )
+	            {
+                    this.runtime.pushCopySol(current_event.solModifiers);
+	                this.exp_CurX = i;
+                    this.exp_CurValue = this.value_get(table[j][i]);
+		    	    current_event.retrigger();
+		    	    this.runtime.popSol(current_event.solModifiers);
+		        }
+		    }
+	    }
+	    else
+	    {
+		    for (j=0; j<y_cnt; j++ )
+	        {
+	            this.exp_CurY = j;
+	            for (i=0; i<x_cnt; i++ )
+	            {
+	                this.exp_CurX = i;
+                    this.exp_CurValue = this.value_get(table[j][i]);
+		    	    current_event.retrigger();
+		        }
+		    }
+	    }
+		return false;
+	};
+	function Acts() {};
+	pluginProto.acts = new Acts();
+	var fake_ret = {value:0,
+	                set_any: function(value){this.value=value;},
+	                set_int: function(value){this.value=value;},
+                    set_float: function(value){this.value=value;},
+                    set_string: function(value){this.value=value;},
+	               };
+    Acts.prototype.CSV2Array = function (csv_string, array_objs, map_mode, z_index)
+	{
+;
+        var array_obj = array_objs.getFirstPicked();
+        var is_array_inst = (array_obj instanceof cr.plugins_.Arr.prototype.Instance);
+;
+        var table = CSVToArray(csv_string, this.strDelimiter);
+		var x_cnt = table.length;
+		var y_cnt = table[0].length;
+		if (z_index == null)
+		{
+		    z_index = 0;
+		    if (map_mode == 0)
+		        cr.plugins_.Arr.prototype.acts.SetSize.apply(array_obj, [x_cnt, y_cnt, z_index+1]);
+	        else
+		        cr.plugins_.Arr.prototype.acts.SetSize.apply(array_obj, [y_cnt, x_cnt, z_index+1]);
+		}
+		else
+		{
+		    if (z_index < 0)
+		        z_index = 0;
+		    cr.plugins_.Arr.prototype.exps.Depth.call(array_obj, fake_ret);
+		    var z_cnt = Math.max(fake_ret.value, z_index+1);
+		    if (map_mode == 0)
+		        cr.plugins_.Arr.prototype.acts.SetSize.apply(array_obj, [x_cnt, y_cnt, z_cnt]);
+	        else
+		        cr.plugins_.Arr.prototype.acts.SetSize.apply(array_obj, [y_cnt, x_cnt, z_cnt]);
+		}
+        var i,j,v;
+		var array_set = cr.plugins_.Arr.prototype.acts.SetXYZ;
+		if (map_mode == 0)
+		{
+		    for(j=0;j<y_cnt;j++)
+		    {
+		        for(i=0;i<x_cnt;i++)
+			    {
+			        v = this.value_get(table[i][j]);
+			        array_set.apply(array_obj, [i,j,z_index, v]);
+			    }
+		    }
+        }
+        else
+        {
+		    for(j=0;j<y_cnt;j++)
+		    {
+		        for(i=0;i<x_cnt;i++)
+			    {
+			        v = this.value_get(table[i][j]);
+			        array_set.apply(array_obj, [j,i,z_index, v]);
+			    }
+		    }
+        }
+	};
+	Acts.prototype.SetDelimiter = function (s)
+	{
+        this.strDelimiter = s;
+	};
+	function Exps() {};
+	pluginProto.exps = new Exps();
+	Exps.prototype.CurX = function (ret)
+	{
+		ret.set_int(this.exp_CurX);
+	};
+	Exps.prototype.CurY = function (ret)
+	{
+		ret.set_int(this.exp_CurY);
+	};
+	Exps.prototype.CurValue = function (ret)
+	{
+		ret.set_any(this.exp_CurValue);
+	};
+	Exps.prototype.Width = function (ret)
+	{
+		ret.set_int(this.exp_Width);
+	};
+	Exps.prototype.Height = function (ret)
+	{
+		ret.set_int(this.exp_Height);
+	};
+	Exps.prototype.Delimiter = function (ret)
+	{
+		ret.set_string(this.strDelimiter);
+	};
+}());
+;
+;
 cr.plugins_.Rex_Firebase = function(runtime)
 {
 	this.runtime = runtime;
@@ -20179,6 +20397,338 @@ cr.plugins_.Rex_Firebase_Authentication = function(runtime)
             photoUrl = getProviderProperty3x("photoURL");
         }
 		ret.set_string(photoUrl || "");
+	};
+}());
+/*
+- counter value
+*/
+;
+;
+cr.plugins_.Rex_Firebase_Counter = function(runtime)
+{
+	this.runtime = runtime;
+};
+(function ()
+{
+	var pluginProto = cr.plugins_.Rex_Firebase_Counter.prototype;
+	pluginProto.Type = function(plugin)
+	{
+		this.plugin = plugin;
+		this.runtime = plugin.runtime;
+	};
+	var typeProto = pluginProto.Type.prototype;
+	typeProto.onCreate = function()
+	{
+	};
+	pluginProto.Instance = function(type)
+	{
+		this.type = type;
+		this.runtime = type.runtime;
+	};
+	var instanceProto = pluginProto.Instance.prototype;
+	instanceProto.onCreate = function()
+	{
+	    this.rootpath = this.properties[0] + "/" + this.properties[1] + "/";
+	    this.set_init(this.properties[2], this.properties[3]);
+	    this.exp_LastTransactionIn = null;
+        this.exp_LastValue = this.init_value;
+        this.exp_MyLastWroteValue = null;
+        this.exp_MyLastAddedValue = 0;
+        this.onCustomAdd_cb = "";
+        this.query = null;
+        this.read_value_handler = null;
+	};
+	instanceProto.onDestroy = function ()
+	{
+	     this.stop_update();
+	};
+    instanceProto.set_init = function (init_value, upper_bound)
+	{
+	    this.init_value = init_value;
+	    if ((upper_bound == "") || (upper_bound == '""'))
+	        upper_bound = null;
+	    else if (typeof (upper_bound) == "string")
+	        upper_bound = parseFloat(upper_bound);
+	    this.upper_bound = upper_bound;
+	    this.set_range(this.init_value, this.upper_bound);
+	};
+	instanceProto.set_range = function(v0, v1)
+	{
+	    if ((v0 == null) || (v1 == null))
+	    {
+	        this.counter_max = null;
+	        this.counter_min = null;
+	    }
+	    else
+	    {
+	        this.counter_max = Math.max(v0, v1);
+	        this.counter_min = Math.min(v0, v1);
+	    }
+    };
+	instanceProto.has_bound = function()
+	{
+	    return (this.upper_bound != null);
+    };
+	var isFirebase3x = function()
+	{
+        return (window["FirebaseV3x"] === true);
+    };
+    var isFullPath = function (p)
+    {
+        return (p.substring(0,8) === "https://");
+    };
+	instanceProto.get_ref = function(k)
+	{
+        if (k == null)
+	        k = "";
+	    var path;
+	    if (isFullPath(k))
+	        path = k;
+	    else
+	        path = this.rootpath + k + "/";
+        if (!isFirebase3x())
+        {
+            return new window["Firebase"](path);
+        }
+        else
+        {
+            var fnName = (isFullPath(path))? "refFromURL":"ref";
+            return window["Firebase"]["database"]()[fnName](path);
+        }
+	};
+    var get_key = function (obj)
+    {
+        return (!isFirebase3x())?  obj["key"]() : obj["key"];
+    };
+    var get_refPath = function (obj)
+    {
+        return (!isFirebase3x())?  obj["ref"]() : obj["ref"];
+    };
+    var get_root = function (obj)
+    {
+        return (!isFirebase3x())?  obj["root"]() : obj["root"];
+    };
+    var serverTimeStamp = function ()
+    {
+        if (!isFirebase3x())
+            return window["Firebase"]["ServerValue"]["TIMESTAMP"];
+        else
+            return window["Firebase"]["database"]["ServerValue"];
+    };
+    var get_timestamp = function (obj)
+    {
+        return (!isFirebase3x())?  obj : obj["TIMESTAMP"];
+    };
+	instanceProto.clamp_result = function(current_value, wrote_value)
+	{
+	    if (!this.has_bound())
+	        return wrote_value;
+	    else if (this.upper_bound == current_value)
+	        return null;   // Abort the transaction
+	    else
+	    {
+	        if (this.upper_bound > this.init_value)
+	        {
+	            if (wrote_value <= this.upper_bound)
+	                return wrote_value;
+	            else if (wrote_value > this.upper_bound)
+	                return this.upper_bound;
+	            else
+	                return null;   // Abort the transaction
+	        }
+	        else // (this.upper_bound < this.init_value)
+	        {
+	            if (wrote_value >= this.upper_bound)
+	                return wrote_value;
+	            else if (wrote_value < this.upper_bound)
+	                return this.upper_bound;
+	            else
+	                return null;   // Abort the transaction
+	        }
+	    }
+    };
+	instanceProto.on_transaction_complete = function(error, committed, snapshot)
+    {
+        if (error)
+        {
+            this.runtime.trigger(cr.plugins_.Rex_Firebase_Counter.prototype.cnds.OnMyWritingError, this);
+        }
+        else if (!committed)
+        {
+            this.runtime.trigger(cr.plugins_.Rex_Firebase_Counter.prototype.cnds.OnMyWritingAbort, this);
+        }
+        else
+        {
+            this.exp_MyLastWroteValue = snapshot["val"]();
+            this.exp_MyLastAddedValue = this.exp_MyLastWroteValue - this.exp_LastTransactionIn;
+            this.runtime.trigger(cr.plugins_.Rex_Firebase_Counter.prototype.cnds.OnMyWriting, this);
+        }
+    };
+    instanceProto.start_update = function ()
+	{
+	    this.stop_update();
+	    var self = this;
+	    var on_read = function (snapshot)
+	    {
+	        var counter_value = snapshot["val"]();
+	        if (counter_value == null)
+	            counter_value = self.init_value;
+	        self.exp_LastValue = counter_value;
+	        self.runtime.trigger(cr.plugins_.Rex_Firebase_Counter.prototype.cnds.OnUpdate, self);
+	    };
+	    var query = this.get_ref();
+	    query["on"]("value", on_read);
+	    this.query = query;
+	    this.read_value_handler = on_read;
+	};
+    instanceProto.stop_update = function ()
+	{
+	    if (this.query)
+	    {
+	        this.query["off"]("value", this.read_value_handler);
+	        this.read_value_handler = null;
+	        this.query = null;
+	    }
+	};
+	function Cnds() {};
+	pluginProto.cnds = new Cnds();
+	Cnds.prototype.OnUpdate = function ()
+	{
+	    return true;
+	};
+	Cnds.prototype.OnMyWriting = function ()
+	{
+	    return true;
+	};
+	Cnds.prototype.CompareLastWroteValue = function (cmp, s)
+	{
+	    if (this.exp_MyLastWroteValue == null)
+	        return false;
+		return cr.do_cmp(this.exp_MyLastWroteValue, cmp, s);
+	};
+	Cnds.prototype.CompareLastValue = function (cmp, s)
+	{
+		return cr.do_cmp(this.exp_LastValue, cmp, s);
+	};
+	Cnds.prototype.OnMyWritingAbort = function ()
+	{
+	    return true;
+	};
+	Cnds.prototype.OnAddFn = function (cb)
+	{
+	    return cr.equals_nocase(cb, this.onCustomAdd_cb);
+	};
+	Cnds.prototype.OnMyWritingError = function ()
+	{
+	    return true;
+	};
+	function Acts() {};
+	pluginProto.acts = new Acts();
+    Acts.prototype.SetDomainRef = function (domain_ref, sub_domain_ref)
+	{
+		this.rootpath = domain_ref + "/" + sub_domain_ref + "/";
+	};
+    Acts.prototype.StartUpdate = function ()
+	{
+	    this.start_update();
+	};
+    Acts.prototype.StopUpdate = function ()
+	{
+	    this.stop_update();
+	};
+    Acts.prototype.SetInit = function (init_value, upper_bound)
+	{
+	    this.set_init(init_value, upper_bound);
+	};
+    Acts.prototype.Add = function (value_)
+	{
+	    var is_numbe = typeof(value_) == "number";
+	    var self = this;
+	    var get_value = function(value_, current_value)
+	    {
+	        if (is_numbe)
+	            return value_;
+	        return (parseFloat(value_)/100 * current_value);
+        };
+	    var on_complete = function(error, committed, snapshot)
+	    {
+	        self.on_transaction_complete(error, committed, snapshot) ;
+        };
+	    var on_add = function (current_value)
+	    {
+	        if (current_value == null)
+	            current_value = self.init_value;
+	        self.exp_LastTransactionIn = current_value;
+	        var added_value = get_value(value_, current_value);
+	        var wrote_value = current_value + added_value;
+	        var result = self.clamp_result(current_value, wrote_value);
+            if (result == null)
+                return;          // Abort the transaction
+            else
+                return result;
+	    };
+	    this.get_ref()["transaction"](on_add, on_complete);
+	};
+    Acts.prototype.ForceSet = function (value_)
+	{
+	    this.get_ref()["set"](value_);
+	};
+    Acts.prototype.CustomAddByFn = function (cb)
+	{
+	    var self = this;
+	    var on_complete = function(error, committed, snapshot)
+	    {
+	        self.on_transaction_complete(error, committed, snapshot) ;
+        };
+        var get_value = function (current_value)
+        {
+	        self.exp_LastTransactionIn = current_value;
+            self.transactionOut = null;
+            self.onCustomAdd_cb = cb;
+            self.runtime.trigger(cr.plugins_.Rex_Firebase_Counter.prototype.cnds.OnAddFn, self);
+            return self.transactionOut;
+        };
+	    var on_add = function (current_value)
+	    {
+	        if (current_value == null)
+	            current_value = self.init_value;
+	        var added_value = get_value(current_value);
+            if (added_value == null)
+                return;   // Abort the transaction
+	        var wrote_value = current_value + added_value;
+	        var result = self.clamp_result(current_value, wrote_value);
+            if (result == null)
+                return;          // Abort the transaction
+            else
+                return result;
+	    };
+	    this.get_ref()["transaction"](on_add, on_complete);
+	};
+    Acts.prototype.CustomAddAdd = function (value_)
+	{
+	    this.transactionOut = value_;
+	};
+    Acts.prototype.CustomAddAbort = function ()
+	{
+	    this.transactionOut = null;
+	};
+	function Exps() {};
+	pluginProto.exps = new Exps();
+	Exps.prototype.LastValue = function (ret)
+	{
+		ret.set_float(this.exp_LastValue);
+	};
+	Exps.prototype.LastWroteValue = function (ret)
+	{
+		ret.set_float(this.exp_MyLastWroteValue || 0);
+	};
+	Exps.prototype.LastAddedValue = function (ret)
+	{
+		ret.set_float(this.exp_MyLastAddedValue);
+	};
+	Exps.prototype.CustomAddIn = function (ret)
+	{
+		ret.set_float(this.exp_LastTransactionIn);
 	};
 }());
 /*
@@ -26466,38 +27016,40 @@ cr.behaviors.lunarray_LiteTween = function(runtime)
 }());
 cr.getObjectRefTable = function () { return [
 	cr.plugins_.Arr,
-	cr.plugins_.filechooser,
-	cr.plugins_.Button,
-	cr.plugins_.Browser,
 	cr.plugins_.Dictionary,
-	cr.plugins_.Particles,
+	cr.plugins_.Browser,
+	cr.plugins_.Button,
+	cr.plugins_.filechooser,
 	cr.plugins_.LocalStorage,
 	cr.plugins_.Function,
+	cr.plugins_.Particles,
 	cr.plugins_.Rex_Firebase_Authentication,
+	cr.plugins_.Rex_CSV2Array,
+	cr.plugins_.Rex_Firebase_Query,
 	cr.plugins_.Rex_Firebase,
 	cr.plugins_.Rex_FirebaseAPIV3,
 	cr.plugins_.Rex_Firebase_Leaderboard,
-	cr.plugins_.Rex_Firebase_Query,
-	cr.plugins_.TextBox,
-	cr.plugins_.cranberrygame_CordovaDialog,
-	cr.plugins_.SpriteFontPlus,
+	cr.plugins_.Rex_Firebase_Counter,
 	cr.plugins_.Sprite,
+	cr.plugins_.cranberrygame_CordovaDialog,
 	cr.plugins_.Touch,
 	cr.plugins_.Text,
+	cr.plugins_.TextBox,
+	cr.plugins_.SpriteFontPlus,
 	cr.behaviors.DragnDrop,
 	cr.behaviors.lunarray_LiteTween,
 	cr.behaviors.Pin,
 	cr.system_object.prototype.cnds.IsGroupActive,
 	cr.system_object.prototype.cnds.OnLayoutStart,
-	cr.plugins_.Function.prototype.acts.CallFunction,
 	cr.plugins_.Function.prototype.cnds.OnFunction,
+	cr.plugins_.Browser.prototype.acts.ConsoleLog,
 	cr.plugins_.Text.prototype.cnds.CompareInstanceVar,
 	cr.plugins_.Text.prototype.acts.SetText,
-	cr.plugins_.Browser.prototype.acts.ConsoleLog,
 	cr.plugins_.Rex_Firebase_Authentication.prototype.cnds.IsLogin,
 	cr.plugins_.Touch.prototype.cnds.OnTouchObject,
 	cr.system_object.prototype.cnds.CompareVar,
 	cr.system_object.prototype.acts.SubVar,
+	cr.plugins_.Function.prototype.acts.CallFunction,
 	cr.system_object.prototype.cnds.Else,
 	cr.plugins_.Browser.prototype.acts.Alert,
 	cr.plugins_.Arr.prototype.cnds.ArrForEach,
@@ -26527,11 +27079,11 @@ cr.getObjectRefTable = function () { return [
 	cr.plugins_.Sprite.prototype.acts.SetAnimFrame,
 	cr.plugins_.Sprite.prototype.acts.SetBoolInstanceVar,
 	cr.system_object.prototype.cnds.ForEach,
+	cr.plugins_.Rex_CSV2Array.prototype.acts.CSV2Array,
 	cr.plugins_.Browser.prototype.cnds.IsOnline,
 	cr.system_object.prototype.cnds.While,
 	cr.plugins_.Rex_Firebase.prototype.cnds.IsConnected,
 	cr.plugins_.Rex_Firebase.prototype.acts.GoOnline,
-	cr.behaviors.Pin.prototype.acts.Pin,
 	cr.system_object.prototype.cnds.LayerVisible,
 	cr.plugins_.Rex_Firebase_Authentication.prototype.acts.LoggingOut,
 	cr.plugins_.TextBox.prototype.cnds.CompareInstanceVar,
@@ -26546,14 +27098,16 @@ cr.getObjectRefTable = function () { return [
 	cr.plugins_.TextBox.prototype.cnds.CompareText,
 	cr.plugins_.Rex_Firebase_Authentication.prototype.acts.EmailPassword_Login,
 	cr.plugins_.TextBox.prototype.exps.Text,
-	cr.plugins_.TextBox.prototype.acts.SetFocus,
-	cr.plugins_.Rex_Firebase_Authentication.prototype.acts.EmailPassword_SendPasswordResetEmail,
-	cr.system_object.prototype.acts.SetLayerVisible,
 	cr.system_object.prototype.acts.SetGroupActive,
+	cr.system_object.prototype.acts.SetLayerVisible,
 	cr.system_object.prototype.acts.Wait,
+	cr.plugins_.Sprite.prototype.cnds.CompareFrame,
+	cr.plugins_.Arr.prototype.exps.CurY,
 	cr.system_object.prototype.cnds.Compare,
 	cr.plugins_.TextBox.prototype.exps.IID,
 	cr.plugins_.Rex_Firebase_Authentication.prototype.acts.EmailPassword_CreateAccount,
+	cr.plugins_.TextBox.prototype.acts.SetFocus,
+	cr.plugins_.Rex_Firebase_Authentication.prototype.acts.EmailPassword_SendPasswordResetEmail,
 	cr.plugins_.Sprite.prototype.acts.SetVisible,
 	cr.plugins_.Rex_Firebase.prototype.cnds.OnConnected,
 	cr.plugins_.Rex_Firebase.prototype.cnds.OnDisconnected,
@@ -26575,13 +27129,12 @@ cr.getObjectRefTable = function () { return [
 	cr.plugins_.Rex_Firebase_Authentication.prototype.cnds.EmailPassword_OnUpdatingProfileError,
 	cr.plugins_.Rex_Firebase_Authentication.prototype.cnds.EmailPassword_OnDeleteUserSuccessful,
 	cr.plugins_.Rex_Firebase_Authentication.prototype.cnds.EmailPassword_OnDeleteUserError,
-	cr.plugins_.Sprite.prototype.cnds.CompareFrame,
 	cr.plugins_.Rex_Firebase.prototype.cnds.OnError,
 	cr.plugins_.Rex_Firebase.prototype.cnds.OnReading,
 	cr.plugins_.Rex_Firebase.prototype.exps.LastData,
 	cr.plugins_.Rex_Firebase_Authentication.prototype.exps.UserName,
-	cr.plugins_.Arr.prototype.exps.AsJSON,
 	cr.plugins_.Rex_Firebase_Authentication.prototype.cnds.EmailPassword_OnCreateAccountSuccessful,
+	cr.plugins_.Rex_Firebase.prototype.acts.GoOffline,
 	cr.plugins_.Rex_Firebase_Authentication.prototype.cnds.EmailPassword_OnCreateAccountError,
 	cr.plugins_.Rex_Firebase_Authentication.prototype.cnds.OnLoginError,
 	cr.system_object.prototype.exps.newline,
@@ -26598,9 +27151,13 @@ cr.getObjectRefTable = function () { return [
 	cr.plugins_.Dictionary.prototype.acts.JSONLoad,
 	cr.plugins_.Arr.prototype.acts.JSONLoad,
 	cr.plugins_.Dictionary.prototype.exps.Get,
-	cr.system_object.prototype.exps["int"],
+	cr.plugins_.Arr.prototype.exps.Height,
+	cr.plugins_.Rex_Firebase_Query.prototype.exps.Count,
+	cr.plugins_.Arr.prototype.exps.AsJSON,
+	cr.plugins_.Rex_Firebase.prototype.acts.Remove,
 	cr.plugins_.TextBox.prototype.acts.SetCSSStyle,
 	cr.system_object.prototype.acts.GoToLayout,
+	cr.plugins_.Rex_Firebase.prototype.exps.LastKey,
 	cr.plugins_.Sprite.prototype.acts.SetOpacity,
 	cr.plugins_.Touch.prototype.cnds.OnTouchEnd,
 	cr.plugins_.Sprite.prototype.cnds.CompareOpacity,
@@ -26608,9 +27165,10 @@ cr.getObjectRefTable = function () { return [
 	cr.plugins_.Text.prototype.acts.SetFontColor,
 	cr.system_object.prototype.exps.rgb,
 	cr.plugins_.Text.prototype.acts.SetFontFace,
+	cr.system_object.prototype.cnds.Every,
+	cr.plugins_.Text.prototype.acts.SetVisible,
 	cr.system_object.prototype.exps.round,
 	cr.system_object.prototype.exps.random,
-	cr.system_object.prototype.cnds.Every,
 	cr.plugins_.Rex_Firebase_Leaderboard.prototype.acts.UpdateAllRanks,
 	cr.plugins_.Rex_Firebase_Leaderboard.prototype.exps.CurPlayerScore,
 	cr.plugins_.Rex_Firebase_Leaderboard.prototype.cnds.OnUpdate,
@@ -26625,5 +27183,6 @@ cr.getObjectRefTable = function () { return [
 	cr.plugins_.Rex_Firebase_Leaderboard.prototype.acts.PostScore,
 	cr.plugins_.Rex_Firebase_Leaderboard.prototype.cnds.OnPostComplete,
 	cr.plugins_.Rex_Firebase_Leaderboard.prototype.cnds.OnPostError,
-	cr.plugins_.Button.prototype.cnds.OnClicked
+	cr.plugins_.Button.prototype.cnds.OnClicked,
+	cr.system_object.prototype.exps["int"]
 ];};
