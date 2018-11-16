@@ -27159,6 +27159,7 @@ cr.getObjectRefTable = function () { return [
 	cr.plugins_.Text.prototype.acts.SetFontColor,
 	cr.system_object.prototype.exps.rgb,
 	cr.plugins_.Text.prototype.acts.SetFontFace,
+	cr.plugins_.Text.prototype.acts.SetWebFont,
 	cr.system_object.prototype.acts.GoToLayout,
 	cr.plugins_.Sprite.prototype.acts.SetOpacity,
 	cr.plugins_.Touch.prototype.cnds.OnTouchEnd,
