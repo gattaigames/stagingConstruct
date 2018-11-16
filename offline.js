@@ -1,5 +1,5 @@
 ﻿{
-	"version": 1542256999,
+	"version": 1542347396,
 	"fileList": [
 		"data.js",
 		"c2runtime.js",
@@ -35,6 +35,7 @@
 		"images/game_bg_moneyleftbg-sheet0.png",
 		"images/game_button-sheet0.png",
 		"images/btnback-sheet0.png",
+		"images/sprite-sheet0.png",
 		"icon-16.png",
 		"icon-32.png",
 		"icon-114.png",
