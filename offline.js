@@ -1,5 +1,5 @@
 ﻿{
-	"version": 1542350074,
+	"version": 1542535637,
 	"fileList": [
 		"data.js",
 		"c2runtime.js",
@@ -34,6 +34,13 @@
 		"images/game_bg_timer-sheet0.png",
 		"images/game_bg_moneyleftbg-sheet0.png",
 		"images/game_button-sheet0.png",
+		"images/bg_redemption-sheet0.png",
+		"images/redemption_reward-sheet0.png",
+		"images/redemption_reward-sheet1.png",
+		"images/redemption_btn-sheet0.png",
+		"images/reward_confirmation-sheet0.png",
+		"images/reward_btn-sheet0.png",
+		"images/reward_redeemed-sheet0.png",
 		"images/btnback-sheet0.png",
 		"images/sprite-sheet0.png",
 		"icon-16.png",
@@ -42,8 +49,7 @@
 		"icon-128.png",
 		"icon-256.png",
 		"loading-logo.png",
-		"londrinasolid-regular-webfont1-webfont.woff",
-		"londrinasolid-regular-webfont1-webfont.woff2",
+		"londrinasolid-regular-webfont.woff",
 		"stylesheet.css",
 		"firebase.js",
 		"litetween.js"
