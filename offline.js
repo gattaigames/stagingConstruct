@@ -1,5 +1,5 @@
 ﻿{
-	"version": 1542549199,
+	"version": 1542682719,
 	"fileList": [
 		"data.js",
 		"c2runtime.js",
@@ -49,7 +49,9 @@
 		"icon-128.png",
 		"icon-256.png",
 		"loading-logo.png",
-		"londrinasolid-regular-webfont.woff",
+		"londrinasolid-regular-webfont1-demo.html",
+		"londrinasolid-regular-webfont1-webfont.woff",
+		"londrinasolid-regular-webfont1-webfont.woff2",
 		"stylesheet.css",
 		"firebase.js",
 		"litetween.js"
