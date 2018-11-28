@@ -1,5 +1,5 @@
 ﻿{
-	"version": 1543370553,
+	"version": 1543399831,
 	"fileList": [
 		"data.js",
 		"c2runtime.js",
@@ -45,6 +45,7 @@
 		"images/sprite-sheet0.png",
 		"images/game_pause-sheet0.png",
 		"images/pause_btns-sheet0.png",
+		"images/game_overpacked-sheet0.png",
 		"media/game_angbaocomplete.ogg",
 		"media/ui_click.ogg",
 		"media/game_moneysend.ogg",

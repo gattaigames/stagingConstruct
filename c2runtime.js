@@ -16356,9 +16356,11 @@ cr.plugins_.Audio = function(runtime)
 		source["connect"](context["destination"]);
 		startSource(source);
 	};
+	document.addEventListener("pointerup", playQueuedAudio, true);
 	document.addEventListener("touchend", playQueuedAudio, true);
 	document.addEventListener("click", playQueuedAudio, true);
 	document.addEventListener("keydown", playQueuedAudio, true);
+	document.addEventListener("gamepadconnected", playQueuedAudio, true);
 	function dbToLinear(x)
 	{
 		var v = dbToLinear_nocap(x);
@@ -18154,7 +18156,8 @@ cr.plugins_.Audio = function(runtime)
 			else
 			{
 				try {
-					useOgg = !!(new Audio().canPlayType('audio/ogg; codecs="vorbis"'));
+					useOgg = !!(new Audio().canPlayType('audio/ogg; codecs="vorbis"')) &&
+								!this.runtime.isWindows10;
 				}
 				catch (e)
 				{
@@ -19355,7 +19358,7 @@ cr.plugins_.Browser = function(runtime)
 	var browserPluginReady = false;
 	document.addEventListener("DOMContentLoaded", function ()
 	{
-		if (window["C2_RegisterSW"] && navigator.serviceWorker)
+		if (window["C2_RegisterSW"] && navigator["serviceWorker"])
 		{
 			var offlineClientScript = document.createElement("script");
 			offlineClientScript.onload = function ()
@@ -19403,16 +19406,6 @@ cr.plugins_.Browser = function(runtime)
 			});
 			window.addEventListener("offline", function() {
 				self.runtime.trigger(cr.plugins_.Browser.prototype.cnds.OnOffline, self);
-			});
-		}
-		if (typeof window.applicationCache !== "undefined")
-		{
-			window.applicationCache.addEventListener('updateready', function() {
-				self.runtime.loadingprogress = 1;
-				self.runtime.trigger(cr.plugins_.Browser.prototype.cnds.OnUpdateReady, self);
-			});
-			window.applicationCache.addEventListener('progress', function(e) {
-				self.runtime.loadingprogress = (e["loaded"] / e["total"]) || 0;
 			});
 		}
 		if (!this.runtime.isDirectCanvas)
@@ -19478,7 +19471,7 @@ cr.plugins_.Browser = function(runtime)
 	};
 	instanceProto.onSWMessage = function (e)
 	{
-		var messageType = e.data.type;
+		var messageType = e["data"]["type"];
 		if (messageType === "downloading-update")
 			this.runtime.trigger(cr.plugins_.Browser.prototype.cnds.OnUpdateFound, this);
 		else if (messageType === "update-ready" || messageType === "update-pending")
@@ -19526,10 +19519,7 @@ cr.plugins_.Browser = function(runtime)
 	};
 	Cnds.prototype.IsDownloadingUpdate = function ()
 	{
-		if (typeof window["applicationCache"] === "undefined")
-			return false;
-		else
-			return window["applicationCache"]["status"] === window["applicationCache"]["DOWNLOADING"];
+		return false;		// deprecated
 	};
 	Cnds.prototype.OnUpdateReady = function ()
 	{
@@ -31848,27 +31838,27 @@ cr.behaviors.rex_lunarray_Tween_mod = function(runtime)
 cr.getObjectRefTable = function () { return [
 	cr.plugins_.AJAX,
 	cr.plugins_.Arr,
+	cr.plugins_.Browser,
 	cr.plugins_.Audio,
 	cr.plugins_.Dictionary,
-	cr.plugins_.Browser,
+	cr.plugins_.Function,
 	cr.plugins_.Button,
 	cr.plugins_.filechooser,
-	cr.plugins_.Function,
-	cr.plugins_.LocalStorage,
 	cr.plugins_.Particles,
-	cr.plugins_.Rex_Firebase_Authentication,
-	cr.plugins_.Rex_FirebaseAPIV3,
+	cr.plugins_.LocalStorage,
 	cr.plugins_.Rex_Firebase_Counter,
-	cr.plugins_.Rex_Firebase_Query,
-	cr.plugins_.Rex_CSV2Array,
 	cr.plugins_.Rex_Firebase,
+	cr.plugins_.Rex_CSV2Array,
+	cr.plugins_.Rex_Firebase_Query,
 	cr.plugins_.Rex_Firebase_Leaderboard,
-	cr.plugins_.Sprite,
+	cr.plugins_.Rex_FirebaseAPIV3,
+	cr.plugins_.Rex_Firebase_Authentication,
 	cr.plugins_.Touch,
 	cr.plugins_.TextBox,
+	cr.plugins_.Sprite,
+	cr.plugins_.Text,
 	cr.plugins_.cranberrygame_CordovaDialog,
 	cr.plugins_.SpriteFontPlus,
-	cr.plugins_.Text,
 	cr.behaviors.DragnDrop,
 	cr.behaviors.lunarray_LiteTween,
 	cr.behaviors.rex_lunarray_Tween_mod,
@@ -31918,7 +31908,6 @@ cr.getObjectRefTable = function () { return [
 	cr.plugins_.Text.prototype.cnds.CompareInstanceVar,
 	cr.plugins_.Text.prototype.acts.SetText,
 	cr.plugins_.Browser.prototype.cnds.IsOnline,
-	cr.plugins_.Browser.prototype.acts.Alert,
 	cr.system_object.prototype.cnds.While,
 	cr.plugins_.Rex_Firebase.prototype.cnds.IsConnected,
 	cr.plugins_.Rex_Firebase.prototype.acts.GoOnline,
@@ -31962,10 +31951,11 @@ cr.getObjectRefTable = function () { return [
 	cr.plugins_.Rex_Firebase.prototype.acts.GoOffline,
 	cr.plugins_.Rex_Firebase_Authentication.prototype.cnds.EmailPassword_OnCreateAccountError,
 	cr.plugins_.Rex_Firebase_Authentication.prototype.exps.ErrorMessage,
-	cr.plugins_.Rex_Firebase_Authentication.prototype.cnds.OnLoginError,
 	cr.system_object.prototype.exps.newline,
+	cr.plugins_.Rex_Firebase_Authentication.prototype.cnds.OnLoginError,
 	cr.plugins_.Browser.prototype.exps.Protocol,
 	cr.plugins_.Browser.prototype.exps.Domain,
+	cr.plugins_.Browser.prototype.acts.Alert,
 	cr.plugins_.Rex_Firebase_Authentication.prototype.cnds.OnLoggedOut,
 	cr.plugins_.Rex_Firebase_Authentication.prototype.acts.GoOffline,
 	cr.plugins_.Rex_Firebase_Authentication.prototype.cnds.OnLoginSuccessful,
@@ -31978,10 +31968,10 @@ cr.getObjectRefTable = function () { return [
 	cr.plugins_.Arr.prototype.acts.JSONLoad,
 	cr.plugins_.Arr.prototype.exps.AsJSON,
 	cr.plugins_.TextBox.prototype.acts.SetCSSStyle,
-	cr.plugins_.Text.prototype.acts.SetFontColor,
-	cr.system_object.prototype.exps.rgb,
 	cr.plugins_.Text.prototype.acts.SetWebFont,
 	cr.system_object.prototype.acts.GoToLayout,
+	cr.plugins_.Text.prototype.acts.SetFontColor,
+	cr.system_object.prototype.exps.rgb,
 	cr.plugins_.Sprite.prototype.acts.SetOpacity,
 	cr.plugins_.Touch.prototype.cnds.OnTouchEnd,
 	cr.plugins_.Sprite.prototype.cnds.CompareOpacity,
