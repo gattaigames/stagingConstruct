@@ -1,5 +1,5 @@
 ﻿{
-	"version": 1543399831,
+	"version": 1543465972,
 	"fileList": [
 		"data.js",
 		"c2runtime.js",
@@ -33,6 +33,7 @@
 		"images/bg_redemption-sheet0.png",
 		"images/redemption_reward-sheet0.png",
 		"images/redemption_reward-sheet1.png",
+		"images/redemption_reward-sheet2.png",
 		"images/redemption_btn-sheet0.png",
 		"images/reward_confirmation-sheet0.png",
 		"images/reward_btn-sheet0.png",
