@@ -2,7 +2,7 @@
 	"name": "Huat Ah RHB!",
 	"short_name": "Huat Ah RHB!",
 	"start_url": "index.html",
-	"display": "standalone",
+	"display": "fullscreen",
 	"orientation": "portrait",
 	"icons": [{
 		"src": "icon-16.png",
