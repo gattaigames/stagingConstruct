@@ -1,5 +1,5 @@
 ﻿{
-	"version": 1546482620,
+	"version": 1548055253,
 	"fileList": [
 		"data.js",
 		"c2runtime.js",
@@ -34,6 +34,7 @@
 		"images/redemption_reward-sheet0.png",
 		"images/redemption_reward-sheet1.png",
 		"images/redemption_reward-sheet2.png",
+		"images/redemption_reward-sheet3.png",
 		"images/redemption_btn-sheet0.png",
 		"images/reward_confirmation-sheet0.png",
 		"images/reward_btn-sheet0.png",
@@ -52,6 +53,8 @@
 		"images/pdpa_1-sheet0.png",
 		"images/pdpa_1-sheet1.png",
 		"images/bg_privacy-sheet0.png",
+		"images/btn_fullscreen-sheet0.png",
+		"images/btn_fullscreen-sheet1.png",
 		"media/game_angbaocomplete.ogg",
 		"media/ui_click.ogg",
 		"media/game_moneysend.ogg",
